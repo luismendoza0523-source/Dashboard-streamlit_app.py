@@ -49,6 +49,14 @@ st.markdown("""
         margin-top: 10px;
         margin-bottom: 15px;
     }
+    .section-title-center {
+        font-size: 24px !important;
+        font-weight: bold;
+        color: #4ADE80;
+        text-align: center;
+        margin-top: 10px;
+        margin-bottom: 15px;
+    }
     .section-title-right {
         font-size: 24px !important;
         font-weight: bold;
@@ -118,10 +126,49 @@ def cargar_datos():
             
     return df
 
+# 1.1 Cargar archivo de METAS (META.xlsx)
+@st.cache_data
+def cargar_metas():
+    archivo_meta = "META.xlsx"
+    if not os.path.exists(archivo_meta):
+        return pd.DataFrame(columns=['CONTRATISTA', 'META', 'MES COSECHA'])
+
+    try:
+        # Intentar leer omitiendo filas sin cabecera si es necesario
+        df_m = pd.read_excel(archivo_meta)
+        if 'COTRATISTA' not in df_m.columns and 'CONTRATISTA' not in df_m.columns:
+            df_m = pd.read_excel(archivo_meta, header=1)
+        
+        df_m.columns = df_m.columns.str.strip()
+        
+        # Renombrar columna si tiene error ortográfico
+        if 'COTRATISTA' in df_m.columns:
+            df_m.rename(columns={'COTRATISTA': 'CONTRATISTA'}, inplace=True)
+            
+        df_m = df_m.dropna(how='all')
+        
+        if 'CONTRATISTA' in df_m.columns:
+            df_m['CONTRATISTA'] = df_m['CONTRATISTA'].astype(str).str.upper().str.strip()
+            
+        if 'META' in df_m.columns:
+            df_m['META_VALOR'] = pd.to_numeric(df_m['META'], errors='coerce').fillna(0)
+            
+        if 'MES COSECHA' in df_m.columns:
+            df_m['MES_COSECHA_STR'] = pd.to_datetime(df_m['MES COSECHA'], errors='coerce').dt.strftime('%Y-%m').fillna('SIN META')
+        else:
+            df_m['MES_COSECHA_STR'] = 'SIN META'
+            
+        return df_m
+    except Exception as e:
+        st.warning(f"⚠️ No se pudo procesar 'META.xlsx': {e}")
+        return pd.DataFrame(columns=['CONTRATISTA', 'META_VALOR', 'MES_COSECHA_STR'])
+
 df_raw = pd.DataFrame()
+df_metas_raw = pd.DataFrame()
 
 try:
     df_raw = cargar_datos()
+    df_metas_raw = cargar_metas()
 except Exception as e:
     st.error(f"❌ Error al cargar el archivo de datos: {e}")
     st.stop()
@@ -152,6 +199,18 @@ if meta_sel:
     df_filtrado = df_filtrado[df_filtrado['META'].isin(meta_sel)]
 if tipo_sub_sel:
     df_filtrado = df_filtrado[df_filtrado['TIPO SUB PROYECTO'].isin(tipo_sub_sel)]
+
+# Cálculo del valor de META según los filtros de Contratista y Mes Cosecha
+df_metas_filtrado = df_metas_raw.copy()
+if not df_metas_filtrado.empty:
+    if contratista_sel:
+        df_metas_filtrado = df_metas_filtrado[df_metas_filtrado['CONTRATISTA'].isin(contratista_sel)]
+    if meta_sel:
+        df_metas_filtrado = df_metas_filtrado[df_metas_filtrado['MES_COSECHA_STR'].isin(meta_sel)]
+    
+    meta_calculada = df_metas_filtrado['META_VALOR'].sum()
+else:
+    meta_calculada = 0
 
 # 3. Cálculo de Indicadores
 def calcular_metricas(df):
@@ -197,11 +256,16 @@ def calcular_metricas(df):
 
 totales = calcular_metricas(df_filtrado)
 
-# 4. Mostrar Encabezado
-col_titulo, col_meta = st.columns([1, 1])
+# 4. Mostrar Encabezado con la META alineada en el centro
+col_titulo, col_meta_empresa, col_bolsa = st.columns([1, 1, 1])
+
 with col_titulo:
     st.markdown('<p class="section-title">📊 Resumen de UIPs Totales</p>', unsafe_allow_html=True)
-with col_meta:
+
+with col_meta_empresa:
+    st.markdown(f'<p class="section-title-center">🎯 META COSECHA: {meta_calculada:,.0f}</p>', unsafe_allow_html=True)
+
+with col_bolsa:
     st.markdown(f'<p class="section-title-right">🎯 UIPs BOLSA: {totales["UIPs_Meta_Suma"]:,.0f}</p>', unsafe_allow_html=True)
 
 # Grid de KPIs
