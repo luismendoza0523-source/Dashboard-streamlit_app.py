@@ -305,12 +305,11 @@ for idx, (label, value, icon) in enumerate(kpis):
         st.write("")
 
 # ==============================================================================
-# 5. TABLA DETALLADA DE PROYECTOS (ESTADO AL INICIO Y SIN FILA TOTAL INTERNA)
+# 5. TABLA DETALLADA DE PROYECTOS
 # ==============================================================================
 st.markdown("---")
 st.subheader("📋 Detalle de Proyectos")
 
-# Lista de campos requeridos con 'ESTADO' al inicio (izquierda)
 campos_solicitados = [
     'ESTADO',
     'N° DE PROYECTO',
@@ -324,7 +323,6 @@ campos_solicitados = [
     'ESTADO GENERAL COMERCIAL'
 ]
 
-# Normalización flexible para mapear nombres de columnas del Excel
 def normalizar_texto(txt):
     return txt.upper().replace('°', '').replace('N°', 'N').replace('_', ' ').replace(' ', '').replace('Ó', 'O')
 
@@ -344,14 +342,12 @@ if not df_filtrado.empty and cols_encontradas:
     df_tabla_detalle = df_filtrado[cols_encontradas].copy()
     df_tabla_detalle.rename(columns=renombres, inplace=True)
     
-    # Formatear la columna UIP FIN y calcular suma acumulada
     if 'UIP FIN' in df_tabla_detalle.columns:
         df_tabla_detalle['UIP FIN'] = pd.to_numeric(df_tabla_detalle['UIP FIN'], errors='coerce').fillna(0)
         total_uip_fin = df_tabla_detalle['UIP FIN'].sum()
     else:
         total_uip_fin = 0
 
-    # Mostrar la tabla en formato limpio (sin fila de total adentro)
     st.dataframe(
         df_tabla_detalle.style.format({'UIP FIN': "{:,.0f}"}, na_rep=""),
         use_container_width=True,
@@ -398,13 +394,22 @@ if not df_contratistas.empty:
         title="Comparativo Global de todos los Indicadores por Empresa Contratista",
         template="plotly_dark"
     )
+    
+    # ---- AJUSTE SOLICITADO: COLOR DE TEXTO DE LA LEYENDA Y TÍTULO EN BLANCO ----
     fig.update_layout(
+        title=dict(
+            font=dict(color='#F8FAFC', size=16)
+        ),
         xaxis_tickangle=-45, 
         height=500,
         plot_bgcolor='#1E293B',
         paper_bgcolor='#1E293B',
         font=dict(color='#F1F5F9'),
         legend_title_text='Indicadores UIP',
+        legend=dict(
+            font=dict(color='#FFFFFF', size=12),                  # Texto de los indicadores en blanco
+            title=dict(font=dict(color='#FFFFFF', size=13))       # Título "Indicadores UIP" en blanco
+        ),
         xaxis=dict(showgrid=True, gridcolor='#334155'),
         yaxis=dict(showgrid=True, gridcolor='#334155')
     )
