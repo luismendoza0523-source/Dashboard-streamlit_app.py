@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ---- PROPUESTA DE ESTILO: OSCURO ATENUADO CON SIDEBAR CLARO ----
+# ---- ESTILO: OSCURO ATENUADO CON SIDEBAR CLARO ----
 st.markdown("""
     <style>
     /* Fondo principal: Gris pizarra oscuro atenuado */
@@ -94,10 +94,20 @@ def cargar_datos():
     except ValueError:
         df = pd.read_excel(archivo_excel, sheet_name=0)
     
-    df.columns = df.columns.str.strip()
+    # Limpiar espacios en blanco en los nombres de las columnas
+    df.columns = df.columns.astype(str).str.strip()
     
-    uip_fin_col = 'UIP FIN' if 'UIP FIN' in df.columns else 'UIP_FIN'
-    df['UIP_Métrica'] = pd.to_numeric(df[uip_fin_col], errors='coerce').fillna(0)
+    # Búsqueda flexible de la columna UIP FIN
+    uip_col = None
+    for col in df.columns:
+        if col.upper().replace('_', ' ').strip() in ['UIP FIN', 'UIP_FIN', 'UIPFIN']:
+            uip_col = col
+            break
+            
+    if uip_col:
+        df['UIP_Métrica'] = pd.to_numeric(df[uip_col], errors='coerce').fillna(0)
+    else:
+        df['UIP_Métrica'] = 0
     
     if 'CONTRATISTA' in df.columns:
         df['CONTRATISTA'] = df['CONTRATISTA'].fillna('SIN CONTRATISTA').astype(str).str.upper().str.strip()
@@ -131,17 +141,15 @@ def cargar_datos():
 def cargar_metas():
     archivo_meta = "META.xlsx"
     if not os.path.exists(archivo_meta):
-        return pd.DataFrame(columns=['CONTRATISTA', 'META', 'MES COSECHA'])
+        return pd.DataFrame(columns=['CONTRATISTA', 'META_VALOR', 'MES_COSECHA_STR'])
 
     try:
-        # Intentar leer omitiendo filas sin cabecera si es necesario
         df_m = pd.read_excel(archivo_meta)
         if 'COTRATISTA' not in df_m.columns and 'CONTRATISTA' not in df_m.columns:
             df_m = pd.read_excel(archivo_meta, header=1)
         
-        df_m.columns = df_m.columns.str.strip()
+        df_m.columns = df_m.columns.astype(str).str.strip()
         
-        # Renombrar columna si tiene error ortográfico
         if 'COTRATISTA' in df_m.columns:
             df_m.rename(columns={'COTRATISTA': 'CONTRATISTA'}, inplace=True)
             
@@ -175,6 +183,7 @@ except Exception as e:
 
 # 2. Sidebar para Filtros Interactivos
 st.sidebar.header("🔍 Filtros de Búsqueda")
+
 municipios = sorted(df_raw['MUNICIPIO'].dropna().unique().tolist()) if 'MUNICIPIO' in df_raw.columns else []
 municipio_sel = st.sidebar.multiselect("Municipio", options=municipios, default=[])
 
@@ -190,6 +199,7 @@ meta_sel = st.sidebar.multiselect("Meta (Año-Mes)", options=metas, default=[])
 tipos_sub = sorted(df_raw['TIPO SUB PROYECTO'].unique().tolist()) if 'TIPO SUB PROYECTO' in df_raw.columns else []
 tipo_sub_sel = st.sidebar.multiselect("Tipo Sub Proyecto", options=tipos_sub, default=[])
 
+# Aplicación de Filtros
 df_filtrado = df_raw.copy()
 if municipio_sel:
     df_filtrado = df_filtrado[df_filtrado['MUNICIPIO'].isin(municipio_sel)]
@@ -200,7 +210,7 @@ if meta_sel:
 if tipo_sub_sel:
     df_filtrado = df_filtrado[df_filtrado['TIPO SUB PROYECTO'].isin(tipo_sub_sel)]
 
-# Cálculo del valor de META según los filtros de Contratista y Mes Cosecha
+# Cálculo del valor de META según los filtros
 df_metas_filtrado = df_metas_raw.copy()
 if not df_metas_filtrado.empty:
     if contratista_sel:
@@ -214,7 +224,6 @@ else:
 
 # 3. Cálculo de Indicadores
 def calcular_metricas(df):
-    m = {}
     if df.empty:
         return {
             'Normalizados': 0, 'Diseñados': 0, 'Dibujados 3GIS': 0, 'Asociados': 0, 
@@ -222,6 +231,7 @@ def calcular_metricas(df):
             'Permisos ZC': 0, 'Sin Inicio Instalación': 0, 'UIPs_Meta_Suma': 0
         }
     
+    m = {}
     m['Normalizados'] = df[df['FECHA DE NORMALIZACION'].notna()]['UIP_Métrica'].sum() if 'FECHA DE NORMALIZACION' in df.columns else 0
     m['Diseñados'] = df[df['FECHA FIN DE DISEÑO'].notna()]['UIP_Métrica'].sum() if 'FECHA FIN DE DISEÑO' in df.columns else 0
     
@@ -256,7 +266,7 @@ def calcular_metricas(df):
 
 totales = calcular_metricas(df_filtrado)
 
-# 4. Mostrar Encabezado con la META alineada en el centro
+# 4. Encabezado e Indicadores
 col_titulo, col_meta_empresa, col_bolsa = st.columns([1, 1, 1])
 
 with col_titulo:
@@ -268,7 +278,7 @@ with col_meta_empresa:
 with col_bolsa:
     st.markdown(f'<p class="section-title-right">🎯 UIPs BOLSA: {totales["UIPs_Meta_Suma"]:,.0f}</p>', unsafe_allow_html=True)
 
-# Grid de KPIs
+# Grid de Tarjetas / KPIs
 cols = st.columns(3)
 kpis = [
     ("UIPs Normalizados", totales['Normalizados'], "🔵"),
@@ -294,7 +304,60 @@ for idx, (label, value, icon) in enumerate(kpis):
         """, unsafe_allow_html=True)
         st.write("")
 
-# 5. Desglose por Contratista
+# ==============================================================================
+# 5. TABLA DETALLADA DE PROYECTOS (UBICADA DEBAJO DE LOS INDICADORES RESUMEN)
+# ==============================================================================
+st.markdown("---")
+st.subheader("📋 Detalle de Proyectos")
+
+# Mapeo inteligente para localizar las columnas en la base de datos sin importar pequeñas variaciones de nombre
+campos_solicitados = [
+    'N° DE PROYECTO',
+    'NOMBRE DEL PROYECTO',
+    'UIP FIN',
+    'MUNICIPIO',
+    'CENTRAL',
+    'CABLE',
+    'TIPO SUB PROYECTO',
+    'CONTRATISTA'
+]
+
+# Diccionario de búsqueda flexible (sin espacios, sin tildes, mayúsculas)
+def normalizar_texto(txt):
+    return txt.upper().replace('°', '').replace('N°', 'N').replace('_', ' ').replace(' ', '').replace('Ó', 'O')
+
+mapa_columnas_existentes = {normalizar_texto(c): c for c in df_filtrado.columns}
+
+cols_encontradas = []
+renombres = {}
+
+for campo_req in campos_solicitados:
+    clave_norm = normalizar_texto(campo_req)
+    if clave_norm in mapa_columnas_existentes:
+        col_real = mapa_columnas_existentes[clave_norm]
+        cols_encontradas.append(col_real)
+        renombres[col_real] = campo_req
+
+if not df_filtrado.empty and cols_encontradas:
+    df_tabla_detalle = df_filtrado[cols_encontradas].copy()
+    df_tabla_detalle.rename(columns=renombres, inplace=True)
+    
+    # Formatear la columna de UIP FIN si existe en la tabla
+    if 'UIP FIN' in df_tabla_detalle.columns:
+        df_tabla_detalle['UIP FIN'] = pd.to_numeric(df_tabla_detalle['UIP FIN'], errors='coerce').fillna(0)
+    
+    st.dataframe(
+        df_tabla_detalle,
+        use_container_width=True,
+        hide_index=True
+    )
+    st.caption(f"📌 Mostrando **{len(df_tabla_detalle):,}** registros encontrados.")
+else:
+    st.info("ℹ️ No hay proyectos disponibles para los filtros seleccionados o no se encontraron las columnas en la base de datos.")
+
+# ==============================================================================
+# 6. DESGLOSE POR CONTRATISTA
+# ==============================================================================
 st.markdown("---")
 st.subheader("👷 Comparativa Detallada por Contratista")
 
@@ -341,16 +404,15 @@ if not df_contratistas.empty:
     )
     st.plotly_chart(fig, use_container_width=True)
     
-    # ---- SECCIÓN OPTIMIZADA: TABLA DE DATOS CON DISEÑO DE GRILLA CONTINUA ----
+    # Tabla Transpuesta por Contratista
     st.markdown("#### Tabla de Datos por Contratista")
     df_transpuesto = df_contratistas.set_index('Contratista').T
     
     fondo_oscuro = "#222E3F"
-    linea_grilla = "1px solid #334155" # Líneas muy finas y tenues que emulan la imagen aportada
+    linea_grilla = "1px solid #334155"
     
     styled_df = (df_transpuesto.style
                  .format("{:,.0f}")
-                 # Celdas numéricas internas (Fondo unificado, Negrita, Grilla sutil)
                  .set_properties(**{
                      'background-color': fondo_oscuro, 
                      'color': '#FFFFFF', 
@@ -360,16 +422,14 @@ if not df_contratistas.empty:
                      'border': f'{linea_grilla} !important'
                  }) 
                  .set_table_styles([
-                     # Cabeceras Superiores (Contratistas) -> En Negrita, mismo fondo y grilla continua
                      {'selector': 'th.col_heading', 'props': [
                          ('background-color', f'{fondo_oscuro} !important'),
-                         ('color', '#38BDF8 !important'), # Color destacado azul claro
+                         ('color', '#38BDF8 !important'),
                          ('text-align', 'center !important'),
                          ('font-size', '15px !important'),
                          ('font-weight', 'bold !important'),
                          ('border', f'{linea_grilla} !important')
                      ]},
-                     # Índice Lateral Izquierdo (Indicadores) -> Forzado en Negrita y misma grilla
                      {'selector': 'th.row_heading', 'props': [
                          ('background-color', f'{fondo_oscuro} !important'),
                          ('color', '#E2E8F0 !important'),
@@ -378,7 +438,6 @@ if not df_contratistas.empty:
                          ('font-weight', 'bold !important'),
                          ('border', f'{linea_grilla} !important')
                      ]},
-                     # Esquina superior izquierda
                      {'selector': 'th.index_name', 'props': [
                          ('background-color', f'{fondo_oscuro} !important'),
                          ('border', f'{linea_grilla} !important')
