@@ -127,8 +127,8 @@ def cargar_datos():
     
     columnas_fecha = [
         'FECHA DE NORMALIZACION', 'FECHA DE APROBACION DE DISEÑO', 'FECHA FIN DE DISEÑO',
-        'FECHA FIN DE REGISTRO 3 GIS', 'FECHA DE INICIO REGISTRO 3 GIS', 'FECHA DE ENVIO ASOCIACION DIREC',
-        'FECHA DE RESPUESTA ASOCIACION DIREC', 'FECHA FIN INSTALACION', 'FECHA DE INICIO INSTALACION', 'FECHA DE PERMISO INTERNO'
+        'FECHA FIN DE REGISTRO 3 GIS', 'FECHA DE INICIO REGISTRO 3 GIS', 'FECHA DE RESPUESTA ASOCIACION DIREC', 
+        'FECHA FIN INSTALACION', 'FECHA DE INICIO INSTALACION', 'FECHA DE PERMISO INTERNO'
     ]
     for col in columnas_fecha:
         if col in df.columns:
@@ -241,17 +241,16 @@ def calcular_metricas(df):
     else:
         m['Dibujados 3GIS'] = 0
         
-    # CÁLCULO DE ASOCIADOS: Suma UIP FIN cuando FECHA DE ENVIO ASOCIACION DIREC contiene un valor válido
-    if 'FECHA DE ENVIO ASOCIACION DIREC' in df.columns:
-        serie_envio = df['FECHA DE ENVIO ASOCIACION DIREC']
-        serie_envio_str = serie_envio.astype(str).str.strip().str.lower()
+    # ---- AJUSTE: CÁLCULO DE ASOCIADOS CON 'FECHA DE RESPUESTA ASOCIACION DIREC' Y SUMA DE UIP FIN ----
+    if 'FECHA DE RESPUESTA ASOCIACION DIREC' in df.columns:
+        serie_resp_str = df['FECHA DE RESPUESTA ASOCIACION DIREC'].astype(str).str.strip()
         condicion_asociados = (
-            serie_envio.notna() & 
-            (serie_envio_str != '') & 
-            (serie_envio_str != 'nan') & 
-            (serie_envio_str != 'nat') & 
-            (serie_envio_str != '0') & 
-            (serie_envio != 0)
+            df['FECHA DE RESPUESTA ASOCIACION DIREC'].notna() & 
+            (serie_resp_str != '') & 
+            (serie_resp_str.str.lower() != 'nan') & 
+            (serie_resp_str.str.lower() != 'nat') & 
+            (serie_resp_str != '0') & 
+            (df['FECHA DE RESPUESTA ASOCIACION DIREC'] != 0)
         )
         m['Asociados'] = df[condicion_asociados]['UIP_Métrica'].sum()
     else:
