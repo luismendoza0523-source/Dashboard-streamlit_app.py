@@ -305,12 +305,12 @@ for idx, (label, value, icon) in enumerate(kpis):
         st.write("")
 
 # ==============================================================================
-# 5. TABLA DETALLADA DE PROYECTOS (UBICADA DEBAJO DE LOS INDICADORES RESUMEN)
+# 5. TABLA DETALLADA DE PROYECTOS (CON ESTADO GENERAL COMERCIAL Y FILA DE TOTAL)
 # ==============================================================================
 st.markdown("---")
 st.subheader("📋 Detalle de Proyectos")
 
-# Mapeo inteligente para localizar las columnas en la base de datos sin importar pequeñas variaciones de nombre
+# Lista de campos requeridos (incluyendo ESTADO GENERAL COMERCIAL)
 campos_solicitados = [
     'N° DE PROYECTO',
     'NOMBRE DEL PROYECTO',
@@ -319,10 +319,11 @@ campos_solicitados = [
     'CENTRAL',
     'CABLE',
     'TIPO SUB PROYECTO',
-    'CONTRATISTA'
+    'CONTRATISTA',
+    'ESTADO GENERAL COMERCIAL'
 ]
 
-# Diccionario de búsqueda flexible (sin espacios, sin tildes, mayúsculas)
+# Normalización flexible para mapear nombres de columnas del Excel
 def normalizar_texto(txt):
     return txt.upper().replace('°', '').replace('N°', 'N').replace('_', ' ').replace(' ', '').replace('Ó', 'O')
 
@@ -342,16 +343,33 @@ if not df_filtrado.empty and cols_encontradas:
     df_tabla_detalle = df_filtrado[cols_encontradas].copy()
     df_tabla_detalle.rename(columns=renombres, inplace=True)
     
-    # Formatear la columna de UIP FIN si existe en la tabla
+    # Formatear la columna UIP FIN
     if 'UIP FIN' in df_tabla_detalle.columns:
         df_tabla_detalle['UIP FIN'] = pd.to_numeric(df_tabla_detalle['UIP FIN'], errors='coerce').fillna(0)
+        total_uip_fin = df_tabla_detalle['UIP FIN'].sum()
+    else:
+        total_uip_fin = 0
+
+    # Crear fila de Total al final
+    fila_total = {col: '' for col in df_tabla_detalle.columns}
     
+    # Asignar la etiqueta TOTAL a la primera columna disponible
+    primera_col = df_tabla_detalle.columns[0]
+    fila_total[primera_col] = 'TOTAL'
+    
+    if 'UIP FIN' in df_tabla_detalle.columns:
+        fila_total['UIP FIN'] = total_uip_fin
+
+    df_total_row = pd.DataFrame([fila_total])
+    df_tabla_con_total = pd.concat([df_tabla_detalle, df_total_row], ignore_index=True)
+    
+    # Formatear vista de la tabla
     st.dataframe(
-        df_tabla_detalle,
+        df_tabla_con_total.style.format({'UIP FIN': "{:,.0f}"}, na_rep=""),
         use_container_width=True,
         hide_index=True
     )
-    st.caption(f"📌 Mostrando **{len(df_tabla_detalle):,}** registros encontrados.")
+    st.caption(f"📌 Total registros: **{len(df_tabla_detalle):,}** | Suma Total UIP FIN: **{total_uip_fin:,.0f}**")
 else:
     st.info("ℹ️ No hay proyectos disponibles para los filtros seleccionados o no se encontraron las columnas en la base de datos.")
 
