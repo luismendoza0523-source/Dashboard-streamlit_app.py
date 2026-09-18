@@ -124,6 +124,11 @@ def cargar_datos():
         df['TIPO SUB PROYECTO'] = df['TIPO SUB PROYECTO'].fillna('SIN TIPO').astype(str).str.strip()
     else:
         df['TIPO SUB PROYECTO'] = 'SIN TIPO'
+
+    if 'ESTADO' in df.columns:
+        df['ESTADO'] = df['ESTADO'].fillna('SIN ESTADO').astype(str).str.strip()
+    else:
+        df['ESTADO'] = 'SIN ESTADO'
     
     columnas_fecha = [
         'FECHA DE NORMALIZACION', 'FECHA DE APROBACION DE DISEÑO', 'FECHA FIN DE DISEÑO',
@@ -199,6 +204,10 @@ meta_sel = st.sidebar.multiselect("Meta (Año-Mes)", options=metas, default=[])
 tipos_sub = sorted(df_raw['TIPO SUB PROYECTO'].unique().tolist()) if 'TIPO SUB PROYECTO' in df_raw.columns else []
 tipo_sub_sel = st.sidebar.multiselect("Tipo Sub Proyecto", options=tipos_sub, default=[])
 
+# ---- NUEVO FILTRO AGREGADO EN LA PARTE INFERIOR DEL SIDEBAR ----
+estados = sorted(df_raw['ESTADO'].unique().tolist()) if 'ESTADO' in df_raw.columns else []
+estado_sel = st.sidebar.multiselect("Estado", options=estados, default=[])
+
 # Aplicación de Filtros
 df_filtrado = df_raw.copy()
 if municipio_sel:
@@ -209,6 +218,8 @@ if meta_sel:
     df_filtrado = df_filtrado[df_filtrado['META'].isin(meta_sel)]
 if tipo_sub_sel:
     df_filtrado = df_filtrado[df_filtrado['TIPO SUB PROYECTO'].isin(tipo_sub_sel)]
+if estado_sel:
+    df_filtrado = df_filtrado[df_filtrado['ESTADO'].isin(estado_sel)]
 
 # Cálculo del valor de META según los filtros
 df_metas_filtrado = df_metas_raw.copy()
@@ -241,7 +252,6 @@ def calcular_metricas(df):
     else:
         m['Dibujados 3GIS'] = 0
         
-    # ---- AJUSTE: CÁLCULO DE ASOCIADOS CON 'FECHA DE RESPUESTA ASOCIACION DIREC' Y SUMA DE UIP FIN ----
     if 'FECHA DE RESPUESTA ASOCIACION DIREC' in df.columns:
         serie_resp_str = df['FECHA DE RESPUESTA ASOCIACION DIREC'].astype(str).str.strip()
         condicion_asociados = (
