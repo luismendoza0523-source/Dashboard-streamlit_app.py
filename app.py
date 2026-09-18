@@ -305,13 +305,14 @@ for idx, (label, value, icon) in enumerate(kpis):
         st.write("")
 
 # ==============================================================================
-# 5. TABLA DETALLADA DE PROYECTOS (CON ESTADO GENERAL COMERCIAL Y FILA DE TOTAL)
+# 5. TABLA DETALLADA DE PROYECTOS (ESTADO AL INICIO Y SIN FILA TOTAL INTERNA)
 # ==============================================================================
 st.markdown("---")
 st.subheader("📋 Detalle de Proyectos")
 
-# Lista de campos requeridos (incluyendo ESTADO GENERAL COMERCIAL)
+# Lista de campos requeridos con 'ESTADO' al inicio (izquierda)
 campos_solicitados = [
+    'ESTADO',
     'N° DE PROYECTO',
     'NOMBRE DEL PROYECTO',
     'UIP FIN',
@@ -343,29 +344,16 @@ if not df_filtrado.empty and cols_encontradas:
     df_tabla_detalle = df_filtrado[cols_encontradas].copy()
     df_tabla_detalle.rename(columns=renombres, inplace=True)
     
-    # Formatear la columna UIP FIN
+    # Formatear la columna UIP FIN y calcular suma acumulada
     if 'UIP FIN' in df_tabla_detalle.columns:
         df_tabla_detalle['UIP FIN'] = pd.to_numeric(df_tabla_detalle['UIP FIN'], errors='coerce').fillna(0)
         total_uip_fin = df_tabla_detalle['UIP FIN'].sum()
     else:
         total_uip_fin = 0
 
-    # Crear fila de Total al final
-    fila_total = {col: '' for col in df_tabla_detalle.columns}
-    
-    # Asignar la etiqueta TOTAL a la primera columna disponible
-    primera_col = df_tabla_detalle.columns[0]
-    fila_total[primera_col] = 'TOTAL'
-    
-    if 'UIP FIN' in df_tabla_detalle.columns:
-        fila_total['UIP FIN'] = total_uip_fin
-
-    df_total_row = pd.DataFrame([fila_total])
-    df_tabla_con_total = pd.concat([df_tabla_detalle, df_total_row], ignore_index=True)
-    
-    # Formatear vista de la tabla
+    # Mostrar la tabla en formato limpio (sin fila de total adentro)
     st.dataframe(
-        df_tabla_con_total.style.format({'UIP FIN': "{:,.0f}"}, na_rep=""),
+        df_tabla_detalle.style.format({'UIP FIN': "{:,.0f}"}, na_rep=""),
         use_container_width=True,
         hide_index=True
     )
