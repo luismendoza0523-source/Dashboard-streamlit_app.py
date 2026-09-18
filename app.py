@@ -127,8 +127,8 @@ def cargar_datos():
     
     columnas_fecha = [
         'FECHA DE NORMALIZACION', 'FECHA DE APROBACION DE DISEÑO', 'FECHA FIN DE DISEÑO',
-        'FECHA FIN DE REGISTRO 3 GIS', 'FECHA DE INICIO REGISTRO 3 GIS', 'FECHA DE RESPUESTA ASOCIACION DIREC', 
-        'FECHA FIN INSTALACION', 'FECHA DE INICIO INSTALACION', 'FECHA DE PERMISO INTERNO'
+        'FECHA FIN DE REGISTRO 3 GIS', 'FECHA DE INICIO REGISTRO 3 GIS', 'FECHA DE ENVIO ASOCIACION DIREC',
+        'FECHA DE RESPUESTA ASOCIACION DIREC', 'FECHA FIN INSTALACION', 'FECHA DE INICIO INSTALACION', 'FECHA DE PERMISO INTERNO'
     ]
     for col in columnas_fecha:
         if col in df.columns:
@@ -241,9 +241,18 @@ def calcular_metricas(df):
     else:
         m['Dibujados 3GIS'] = 0
         
+    # CÁLCULO DE ASOCIADOS: Suma UIP FIN cuando FECHA DE ENVIO ASOCIACION DIREC contiene un valor válido
     if 'FECHA DE ENVIO ASOCIACION DIREC' in df.columns:
-        serie_envio_str = df['FECHA DE ENVIO ASOCIACION DIREC'].astype(str).str.strip()
-        condicion_asociados = (df['FECHA DE ENVIO ASOCIACION DIREC'].notna() & (serie_envio_str != '') & (serie_envio_str.str.lower() != 'nan') & (serie_envio_str.str.lower() != 'nat') & (serie_envio_str != '0') & (df['FECHA DE ENVIO ASOCIACION DIREC'] != 0))
+        serie_envio = df['FECHA DE ENVIO ASOCIACION DIREC']
+        serie_envio_str = serie_envio.astype(str).str.strip().str.lower()
+        condicion_asociados = (
+            serie_envio.notna() & 
+            (serie_envio_str != '') & 
+            (serie_envio_str != 'nan') & 
+            (serie_envio_str != 'nat') & 
+            (serie_envio_str != '0') & 
+            (serie_envio != 0)
+        )
         m['Asociados'] = df[condicion_asociados]['UIP_Métrica'].sum()
     else:
         m['Asociados'] = 0
@@ -395,7 +404,6 @@ if not df_contratistas.empty:
         template="plotly_dark"
     )
     
-    # ---- AJUSTE SOLICITADO: COLOR DE TEXTO DE LA LEYENDA Y TÍTULO EN BLANCO ----
     fig.update_layout(
         title=dict(
             font=dict(color='#F8FAFC', size=16)
@@ -407,8 +415,8 @@ if not df_contratistas.empty:
         font=dict(color='#F1F5F9'),
         legend_title_text='Indicadores UIP',
         legend=dict(
-            font=dict(color='#FFFFFF', size=12),                  # Texto de los indicadores en blanco
-            title=dict(font=dict(color='#FFFFFF', size=13))       # Título "Indicadores UIP" en blanco
+            font=dict(color='#FFFFFF', size=12),
+            title=dict(font=dict(color='#FFFFFF', size=13))
         ),
         xaxis=dict(showgrid=True, gridcolor='#334155'),
         yaxis=dict(showgrid=True, gridcolor='#334155')
